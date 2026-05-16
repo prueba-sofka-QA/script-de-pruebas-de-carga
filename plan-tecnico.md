@@ -65,15 +65,9 @@ Implementar una prueba de carga para el servicio de autenticación (login) de la
 
 ### 2.2 Stack Tecnológico
 
-| Componente | Tecnología | Versión |
-|------------|------------|---------|
-| Load Testing Tool | K6 | v0.49.0+ |
-| Runtime | Node.js (opcional para xk6) | v18+ |
-| Data Format | CSV | - |
-| Report Format | HTML, JSON | - |
-| Version Control | Git | - |
-
----
+- **Lenguaje** Javasccript
+- **Runntime** Node.js v.20 +
+- **Formato de reporte** HTML,json
 
 ## 3. Diseño del Script de Prueba
 
@@ -203,8 +197,6 @@ const loginSuccessRate = new Rate('login_success');
 const loginCount = new Counter('login_attempts');
 ```
 
----
-
 ## 4. Estrategia de Carga
 
 ### 4.1 Perfil de Carga - Ramping VUs
@@ -242,8 +234,6 @@ constant_arrival_rate: {
 ```
 
 Esta opción garantiza una tasa constante de 25 TPS independiente del tiempo de respuesta.
-
----
 
 ## 5. Validaciones y Thresholds
 
