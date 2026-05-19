@@ -1,236 +1,247 @@
-# Análisis de Datos de Referencia - Prueba de Carga Login API
+﻿# Analisis de Datos de Referencia - Prueba de Carga Login API
 
-> **Nota**: Este análisis corresponde a los **datos de referencia** provistos en el ejercicio (`results/summary.txt` y `results/vus_vs_tps.png`). Se analizan las métricas y patrones de comportamiento del sistema de referencia, identificando escalabilidad, saturación, caídas y recuperaciones en los datos provistos.
+> **Nota**: Este analisis corresponde a los **datos de referencia** provistos en el ejercicio (`results/textsummry.txt` y `results/VUs_vs_TPS.png`). Se analizan las metricas y patrones de comportamiento del sistema de referencia, identificando escalabilidad, saturacion, caidas y recuperaciones en los datos provistos.
 
-## 1. Resumen Ejecutivo — Métricas del Sistema de Referencia
+## 1. Resumen Ejecutivo - Metricas del Sistema de Referencia
 
-**Archivo de referencia**: `results/summary.txt`
-**API bajo prueba**: https://fakestoreapi.com/auth/login
-**Duración total de la prueba**: 7 minutos
+**Archivo de referencia**: `results/textsummry.txt`
+**API bajo prueba**: Servicio de autenticacion (login)
+**Duracion total de la prueba**: ~50 minutos (01:40 - 02:30)
 
-### 1.1 Métricas Generales del Sistema de Referencia
+### 1.1 Metricas Generales del Sistema de Referencia
 
-| Métrica | Valor en Referencia | Criterio | Cumplimiento |
+| Metrica | Valor en Referencia | Criterio | Cumplimiento |
 |---------|-------------------|----------|-------------|
-| TPS Promedio | 18.04 req/s | ≥ 20 TPS | ✗ NO CUMPLE |
-| Tiempo de Respuesta P95 | 373.15 ms | < 1500 ms | ✓ Cumple |
-| Tasa de Error | 0.00% | < 3% | ✓ Cumple |
+| TPS Promedio | 73.18 req/s | >= 20 TPS | PASS - Cumple |
+| Tiempo de Respuesta P95 | 1.57 s | < 1.5 s | FAIL - No cumple |
+| Tasa de Error | 2.44% | < 3% | PASS - Cumple |
+| Total Requests | 276,650 | - | - |
+| VUs maximos | 140 | - | - |
+| Checks exitosos | 97.55% | - | - |
+
+**Conclusion general**: El sistema de referencia CUMPLE el criterio de TPS (73.18 >> 20 req/s) y tasa de error (2.44% < 3%), pero NO CUMPLE el criterio de latencia P95 (1.57s > 1.5s). Las dos caidas dramaticas de VUs observadas en la grafica revelan inestabilidad estructural bajo carga sostenida.
 
 ---
 
-## 2. Análisis Detallado de Métricas de Referencia
+## 2. Analisis Detallado de Metricas de Referencia
 
 ### 2.1 Throughput (TPS) del Sistema de Referencia
 
-**Valor en datos de referencia**: 18.04 requests/segundo
+**Valor en datos de referencia**: 73.18 requests/segundo
 
-**Análisis**:
-- El TPS del sistema de referencia (18.04 req/s) está por debajo del criterio mínimo de 20 req/s
-- Déficit: -1.96 TPS (-9.8% por debajo del objetivo)
-- El sistema de referencia se satura a partir de 25 VUs, momento en que el TPS se estanca en ~18 req/s
-- TPS estimado teórico a 30 VUs: ~24 req/s (proyectando crecimiento lineal de ~1.2 req/s por VU)
-- GAP real vs teórico: 6 req/s (-25%)
+**Analisis**:
+- El TPS del sistema de referencia (73.18 req/s) supera ampliamente el criterio minimo de 20 req/s
+- Excedente: +53.18 TPS (+265.9% por encima del objetivo)
+- El pico de TPS registrado es de 82.6 req/s (a las 02:02:00 con 140 VUs)
+- Sin embargo, las caidas de VUs en la grafica indican que este throughput no es sostenible de forma continua
+- El sistema no mantiene 140 VUs estables durante toda la prueba: sufre dos colapsos donde los VUs caen a 10-20
 
-**Interpretación**:
-El sistema de referencia NO CUMPLE el objetivo de 20+ TPS. El throughput se estanca en 18.04 req/s, indicando un bottleneck estructural del servidor API.
+**Interpretacion**:
+El sistema de referencia CUMPLE el objetivo de 20+ TPS. No obstante, la alta tasa de errores 5xx (5,987 errores) y las caidas de VUs indican que el throughput promedio de 73 req/s se logra a costa de inestabilidad. El sistema alterna entre periodos de alta carga (~140 VUs, 82 req/s) y colapsos (~10 VUs).
 
 ### 2.2 Tiempo de Respuesta del Sistema de Referencia
 
 | Percentil | Valor (ms) | Criterio | Cumplimiento |
 |-----------|-----------|----------|--------------|
-| Promedio | 345.30 | - | - |
-| P50 (Mediana) | 340.94 | - | - |
-| P90 | 361.25 | - | - |
-| P95 | 373.15 | < 1500 | ✓ Cumple |
-| P99 | 419.41 | - | - |
-| Máximo | 836.87 | - | - |
+| Promedio | 861.68 | - | - |
+| Minimo | 191.86 | - | - |
+| P50 (Mediana) | 613.42 | - | - |
+| P90 | 1,280 | - | - |
+| P95 | 1,570 | < 1500 | FAIL - No cumple |
+| Maximo | 29,930 | - | - |
 
-**Análisis**:
-Los tiempos de respuesta son estables y bajos. El P95 de 373.15ms está muy por debajo del límite de 1500ms, indicando que la latencia no es el factor limitante. La diferencia entre P50 (340.94ms) y P99 (419.41ms) es de solo ~78ms, demostrando una distribución muy uniforme.
+**Analisis**:
+- El P95 de 1.57s **excede** el criterio de <1.5s en 70ms (+4.7%)
+- La diferencia entre mediana (613.42ms) y promedio (861.68ms) es de 248ms, indicando una distribucion fuertemente sesgada: hay peticiones muy lentas que inflan el promedio
+- **El valor maximo de 29.93s es critico**: es 19x mayor que el P95 (1.57s) y 49x mayor que la mediana (613ms). Esto revela fallos cascada o timeouts masivos durante las caidas de VUs
+- Las peticiones exitosas (`expected_response:true`) tienen promedio 735.84ms vs 861.68ms global, confirmando que las peticiones fallidas son mas lentas
+- La latencia no es estable: la brecha P95-P50 = 957ms indica alta variabilidad, correlacionada con los periodos de colapso del servidor
+
+**Interpretacion**:
+El sistema de referencia NO CUMPLE el criterio de latencia. El P95 de 1.57s y el maximo de 29.93s indican que durante los picos de carga o las caidas, las peticiones experimentan latencias extremas. Esto es consistente con un servidor que se satura y genera timeouts/errores 5xx.
 
 ### 2.3 Tasa de Errores del Sistema de Referencia
 
-**Tasa de error total en referencia**: 0.00%
+**Tasa de error total en referencia**: 2.44% (6,759 fallos de 276,650 requests)
 
-**Distribución de errores por código HTTP**:
-- 200 OK: 100% (7605 requests)
-- 4xx Client Errors: 0%
-- 5xx Server Errors: 0%
-- Timeouts: 0%
+**Distribucion de errores por tipo y etapa**:
 
-**Análisis**:
-El sistema de referencia no presenta errores durante toda la prueba. Maneja correctamente todas las peticiones incluso en el punto de saturación, pero con throughput limitado. Esto refuerza la hipótesis de un límite estructural controlado (rate limiting, pool de conexiones) y no un problema de estabilidad o fallos del servidor.
+| Tipo de Error | Etapa | Cantidad | Tasa | % del Total de Fallos |
+|---------------|-------|----------|------|----------------------|
+| HTTP 5xx (Server Error) | Stage 1 | 5,987 | 1.58/s | **88.6%** |
+| HTTP 4xx (Client Error) | Stage 1 | 769 | 0.20/s | 11.4% |
+| HTTP 5xx (Server Error) | Stage 0 | 1 | ~0/s | <0.1% |
+| HTTP 5xx (Server Error) | Stage 2 | 2 | ~0/s | <0.1% |
+| **Total** | | **6,759** | | **100%** |
 
----
+**Analisis**:
+- El 88.6% de los fallos (5,987) son errores 5xx del servidor, concentrados en el stage 1 de la prueba
+- Esto confirma que el servidor colapsa bajo carga: no puede procesar todas las peticiones y responde con errores internos
+- Los errores 4xx (769, 11.4%) son probablemente artefactos de la inestabilidad (requests malformados durante los colapsos)
+- La tasa de error de 2.44% esta por debajo del criterio del 3%, por lo que **formalmente cumple**, pero la concentracion de 5xx en stage 1 es una senal de alerta
 
-## 3. Análisis por Etapa de Carga — Comportamiento del Sistema de Referencia
-
-### 3.1 Fase de Warm-up (0-1 min, 0→10 VUs)
-
-- **TPS inicial**: Crecimiento progresivo de 0 a ~10 TPS
-- **Tiempo de respuesta P95**: ~340 ms
-- **Tasa de error**: 0%
-
-**Observaciones**:
-El sistema responde bien durante el calentamiento. El TPS escala linealmente con los VUs sin degradación. Comportamiento normal esperado.
-
-### 3.2 Fase de Ramp-up (1-4 min, 10→30 VUs)
-
-- **TPS**: Crece hasta ~18 TPS y se estanca
-- **Tiempo de respuesta P95**: Aumenta ligeramente de 340ms a ~373ms
-- **Tasa de error**: 0%
-
-**Observaciones**:
-A partir de los 25 VUs (~200 segundos de prueba) el TPS deja de crecer y se estabiliza en ~18 TPS. Este es el punto de saturación del sistema. No hay recuperación ni caída abrupta, solo un estancamiento.
-
-### 3.3 Fase Steady-State (4-6 min, 30 VUs constantes)
-
-- **TPS promedio**: 18.04 req/s
-- **Tiempo de respuesta P95**: 373.15 ms
-- **Tasa de error**: 0%
-
-**Observaciones**:
-El TPS permanece constante durante toda la fase de carga sostenida. No se observan recuperaciones ni mejoras: el sistema opera al límite de su capacidad (~18 TPS). Los tiempos de respuesta se mantienen estables.
-
-### 3.4 Fase de Ramp-down (6-7 min, 30→0 VUs)
-
-**Observaciones**:
-El TPS disminuye proporcionalmente a la reducción de VUs, sin anomalías. El sistema se recupera sin errores residuales.
+**Interpretacion**:
+Aunque la tasa de error global cumple el criterio (<3%), los 5,987 errores 5xx indican que el servidor NO soporta la carga maxima de forma estable. Los errores no son uniformes, sino que se concentran en el stage 1, coincidiendo con las caidas de VUs observadas en la grafica.
 
 ---
 
-## 4. Análisis de la Gráfica de Referencia VUs vs TPS (`vus_vs_tps.png`)
+## 3. Analisis de la Grafica de Referencia VUs vs TPS (`VUs_vs_TPS.png`)
 
-> **Nota**: Este análisis corresponde a los datos provistos en el ejercicio (`results/vus_vs_tps.png` y `results/summary.txt`). Se identifican los patrones de comportamiento del sistema de referencia bajo carga.
+> **Nota**: Este analisis se basa en la grafica de referencia provista en el ejercicio. Se identifican los patrones de comportamiento reales del sistema bajo carga.
 
-### 4.1 Patrones Identificados
+### 3.1 Estructura de la Grafica
 
-#### 4.1.1 Escalabilidad Lineal (Inicio)
+| Elemento | Descripcion |
+|----------|-------------|
+| **Tipo** | Grafico de lineas temporales con dos metricas superpuestas |
+| **Eje Y izquierdo** | VUs (Usuarios Virtuales) - Escala 0 a 150 |
+| **Eje Y derecho** | http_reqs (Solicitudes HTTP/s) - Escala 0/s a 100/s |
+| **Eje X** | Tiempo - ~50 minutos (01:40:00 a 02:30:00) |
+| **VUs** | Area azul clara sombreada |
+| **http_reqs** | Linea azul oscura |
 
-Durante la fase de ramp-up (0-240s), el TPS crece proporcionalmente al aumento de VUs:
+### 3.2 Fases Identificadas en la Grafica
 
-| Intervalo | VUs | TPS | Incremento |
-|-----------|-----|-----|-----------|
-| t=0-60s (warm-up) | 0→10 | 0→~4.2 req/s | ~0.7 TPS por VU |
-| t=60-100s | 10→~14 | ~4.2→~7.6 req/s | ~0.85 TPS por VU |
-| t=100-140s | ~14→~18 | ~7.6→~10.4 req/s | ~0.7 TPS por VU |
-| t=140-180s | ~18→~22 | ~10.4→~13.3 req/s | ~0.73 TPS por VU |
-| t=180-240s | ~22→30 | ~13.3→~17.5 req/s | ~0.7 TPS por VU |
+#### Fase 1: Estable Inicial (01:40 - 01:50, ~10 min)
+- **VUs**: ~150 constantes
+- **http_reqs**: ~85 req/s estables
+- **Estado**: Carga maxima sostenida, sistema respondiendo
 
-**Pendiente promedio**: ~0.73 TPS por VU agregado
+#### Fase 2: Primera Caida Dramatica (~01:50, ~2 min)
+- **VUs**: Caida abrupta de ~150 a 10-20
+- **http_reqs**: Caida proporcional (sigue el patron de VUs)
+- **Tipo de patron**: CAIDA ABRUPTA - Colapso del sistema
+- **Interpretacion**: El servidor falla bajo la carga sostenida, k6 reduce drasticamente los VUs activos
 
-#### 4.1.2 Punto de Saturación
+#### Fase 3: Recuperacion Gradual (01:50 - 02:15, ~25 min)
+- **VUs**: Recuperacion progresiva de 10-20 hasta ~140
+- **http_reqs**: Recuperacion proporcional siguiendo a los VUs
+- **Tipo de patron**: RECUPERACION - El sistema reintenta escalar
+- **Interpretacion**: k6 incrementa VUs gradualmente. El servidor responde, permitiendo la recuperacion parcial
 
-- **Inicio de saturación**: ~25 VUs (~200s de prueba)
-- **TPS máximo alcanzado**: ~18 req/s
-- **Naturaleza**: El cambio es gradual — el TPS deja de crecer suavemente, no hay un colapso abrupto
+#### Fase 4: Estable Intermedio (02:02 - 02:25, ~23 min)
+- **VUs**: ~140 estables (pico: 140 VUs a las 02:02 generando 82.6 req/s)
+- **http_reqs**: ~82.6 req/s
+- **Tipo de patron**: SATURACION - Meseta de rendimiento maximo
+- **Interpretacion**: El sistema opera al limite de su capacidad (~140 VUs / 82 req/s)
 
-#### 4.1.3 Caídas de Rendimiento
+#### Fase 5: Segunda Caida (~02:30)
+- **VUs**: Nueva reduccion significativa
+- **http_reqs**: Caida proporcional
+- **Tipo de patron**: CAIDA ABRUPTA - Segundo colapso
+- **Interpretacion**: El sistema vuelve a fallar, indicando que la causa raiz no se resolvio tras la primera recuperacion
 
-| Tipo | ¿Observado? | Detalle |
-|------|-------------|---------|
-| Caída abrupta | No | No hay puntos donde el TPS disminuya mientras los VUs aumentan |
-| Degradación progresiva | No | Durante el steady-state (240-360s) el TPS se mantiene estable en ~18 TPS sin degradarse |
-| Estancamiento | Sí | A partir de 25 VUs, el TPS deja de escalar pero no cae |
+### 3.3 Patrones Identificados (Resumen)
 
-**Interpretación**: La ausencia de caídas abruptas sugiere que el límite es un **rate limiting controlado** por el servidor, no una contención de recursos (CPU/memoria). Un bottleneck de recursos típicamente muestra caídas pronunciadas al competir por recursos compartidos.
+| Patron | Estado | Descripcion |
+|--------|--------|-------------|
+| **Caidas** | OBSERVADO (2 eventos) | Dos colapsos donde VUs caen de ~150 a 10-20. La primera a los ~10 min (~01:50), la segunda a los ~50 min (~02:30) |
+| **Recuperaciones** | OBSERVADO (1 evento) | Recuperacion gradual post-primera caida (~01:50 a 02:15). Los VUs pasan de 10-20 a ~140 |
+| **Saturacion** | OBSERVADO | El TPS se estabiliza en ~82 req/s con ~140 VUs. No crece mas alla de este punto |
+| **Correlacion VUs-TPS** | OBSERVADO | La curva de http_reqs sigue fielmente la de VUs en todo momento, demostrando que el throughput es estrictamente proporcional a los usuarios activos |
 
-#### 4.1.4 Recuperaciones o Estabilización
+### 3.4 Ciclo de Degradacion Identificado
 
-- **¿Recupera el TPS después de una caída?**: No aplica — no hay caídas previas
-- **¿Se estabiliza en un nuevo nivel?**: Sí, el TPS se estabiliza en ~18 req/s durante toda la fase de carga sostenida (240-360s)
-- **Meseta**: Entre 200-360s, el TPS permanece constante con variación mínima (17.5-18.0 TPS)
-- **Ramp-down**: Al reducir VUs (360-420s), el TPS decrece proporcionalmente sin anomalías, indicando que el sistema se recupera correctamente
+```
+ESTABLE (150 VUs, 85 req/s)
+    │
+    ├──> CAIDA #1: VUs colapsan a 10-20
+    │         │
+    │         └──> RECUPERACION GRADUAL: VUs suben a 140
+    │                    │
+    │                    └──> ESTABLE (140 VUs, 82 req/s)
+    │                              │
+    │                              └──> CAIDA #2: VUs colapsan nuevamente
+```
 
-### 4.2 Resumen de Patrones
-
-| Patrón | Estado | Descripción |
-|--------|--------|-----------|
-| Escalabilidad lineal | ✓ Observado | ~0.73 TPS/VU hasta ~25 VUs |
-| Saturación | ✓ Identificada | A ~25 VUs, TPS máximo ~18 req/s |
-| Caídas | ✗ Ausentes | No hay drops abruptos |
-| Recuperaciones | ✗ No aplica | No hay caídas de las que recuperarse |
-| Estabilización | ✓ Confirmada | Meseta plana en ~18 TPS durante 2 min |
-
-### 4.3 Relación con Datos Numéricos
-
-Los patrones observados en la gráfica son consistentes con las métricas de `results/summary.txt`:
-- **TPS promedio**: 18.04 req/s (confirma la meseta observada en la gráfica)
-- **P95**: 373.15ms (estable, sin correlación con degradación de TPS)
-- **Error rate**: 0% (consistente con la estabilidad observada)
-- **VUs máximos**: 30 (el sistema no se probó más allá de este punto)
+Este ciclo "estable -> colapso -> recuperacion -> recolapso" revela un sistema que NO puede mantener carga alta de forma continua.
 
 ---
 
-## 5. Comparación: Datos de Referencia vs Criterios de Aceptación
+## 4. Correlacion Grafica vs Metricas (textSummary.txt)
+
+| Observacion en Grafica | Evidencia en textSummary.txt |
+|------------------------|------------------------------|
+| Caidas de VUs a 10-20 | `vus: min=2` - confirma el minimo global durante colapsos |
+| Recuperacion a ~140 VUs | `vus_max: 140` - confirma el maximo sostenido alcanzado |
+| Correlacion VUs <-> http_reqs | `http_reqs: 276650 73.176857/s` - throughput promedio global |
+| Dos caidas = dos colapsos del servidor | 5,987 errores HTTP 5xx (stage 1) = 88.6% de fallos por errores del servidor |
+| TPS pico de 82.6 req/s | Throughput promedio de 73.18 req/s (promedio ponderado entre picos y valles) |
+| Latencia extrema durante caidas | `http_req_duration max=29.93s` - timeouts masivos |
+| Recuperacion entre caidas | `vus_max=140`, sistema logra retomar carga |
+| Inestabilidad cronica | 2.44% error rate con 88.6% de fallos concentrados como 5xx |
+
+---
+
+## 5. Comparacion: Datos de Referencia vs Criterios de Aceptacion
 
 ### 5.1 Tabla Comparativa
 
-| Métrica | Dato de Referencia | Criterio Esperado | Diferencia | Análisis |
+| Metrica | Dato de Referencia | Criterio Esperado | Diferencia | Analisis |
 |---------|-------------------|-------------------|-----------|----------|
-| TPS promedio | 18.04 req/s | ≥ 20 req/s | -1.96 req/s (-9.8%) | No cumple: el sistema de referencia está por debajo del objetivo |
-| P95 (steady-state) | 373.15 ms | < 1500 ms | -1126.85 ms | Cumple con amplio margen: la latencia no es un factor limitante |
-| Tasa de error | 0% | < 3% | -3% | Cumple: sin errores incluso en el punto de saturación |
-| VUs para saturación | ~25 VUs | - | - | El sistema se satura antes de alcanzar los 30 VUs máximos de la prueba |
-| TPS máximo sostenido | ~18 req/s | - | - | El throughput se estanca en este valor durante toda la carga alta |
+| TPS promedio | 73.18 req/s | >= 20 req/s | +53.18 req/s (+265.9%) | Cumple con amplio margen |
+| P95 latencia | 1,570 ms | < 1,500 ms | +70 ms (+4.7%) | **No cumple** por 70ms |
+| Tasa de error | 2.44% | < 3% | -0.56% | Cumple por margen estrecho |
+| VUs maximos | 140 | - | - | Carga pico alcanzada |
+| Latencia maxima | 29.93 s | - | - | Valor extremo critico |
+| TPS pico | ~82.6 req/s | - | - | No sostenible |
 
-### 5.2 Interpretación de Diferencias
+### 5.2 Interpretacion de Diferencias
 
-**Respecto al objetivo de TPS (≥ 20 req/s):**
-El sistema de referencia alcanza 18.04 TPS, quedando un 9.8% por debajo del criterio. La gráfica `vus_vs_tps.png` confirma que el TPS se estanca a partir de ~25 VUs y nunca supera los ~18 req/s, incluso cuando se mantienen 30 VUs durante 2 minutos.
+**Respecto al objetivo de TPS (>= 20 req/s):**
+El sistema de referencia alcanza 73.18 TPS promedio, superando el criterio por mas de 3.5x. Sin embargo, este throughput no es estable: alterna entre picos de 82 req/s y valles cercanos a 0 durante las caidas de VUs.
 
 **Respecto a la latencia (P95 < 1500ms):**
-El P95 de 373.15ms está muy por debajo del límite. La gráfica muestra que los tiempos de respuesta se mantienen estables durante toda la prueba, sin correlación con la saturación del TPS. Esto sugiere que el límite está en el servidor (conexiones concurrentes), no en la capacidad de procesamiento por request.
+El P95 de 1.57s NO cumple el criterio. La grafica muestra que las latencias extremas ocurren durante las caidas de VUs, cuando el servidor colapsa y genera timeouts (max 29.93s). La latencia en condiciones estables (~613ms mediana) es aceptable, pero los periodos de inestabilidad degradan los percentiles altos.
 
 **Respecto a la tasa de error (< 3%):**
-Con 0% de errores, el sistema opera de forma estable incluso en su punto de saturación. No se observan timeouts, rechazos de conexión ni respuestas 5xx.
-
-### 5.3 Comparativa de Patrones entre Referencia y lo Esperado
-
-| Aspecto | Comportamiento de Referencia | Comportamiento Esperado (Ideal) | Brecha |
-|---------|------------------------------|--------------------------------|--------|
-| Escalabilidad | Lineal hasta ~25 VUs | Lineal hasta 30+ VUs | El sistema se satura antes de lo deseable |
-| Throughput pico | ~18 TPS | ≥ 20 TPS | 9.8% por debajo |
-| Estabilidad | Alta (sin fluctuaciones) | Alta | Coincide |
-| Capacidad de recuperación | Correcta (sin anomalías) | Correcta | Coincide |
+El 2.44% cumple formalmente, pero el 88.6% de los errores son 5xx del servidor (no del cliente ni del script). Esto es sintoma de un problema estructural, no de un margen de seguridad adecuado.
 
 ---
 
-## 6. Causa Raíz
+## 6. Causa Raiz
 
-El sistema de referencia no cumple el criterio de 20+ TPS debido a un **límite estructural del servidor API**, no a defectos en el script de pruebas:
+El sistema de referencia **no soporta carga sostenida de 140+ VUs** debido a un **bottleneck estructural del servidor**, evidenciado por:
 
-- **Conexiones concurrentes limitadas**: El servidor restringe el número de conexiones simultáneas
-- **Rate limiting**: Posible limitación de tasa en el endpoint de autenticación
-- **Pool de workers**: El servidor tiene un número fijo de workers que procesan solicitudes
-- **Sin errores ni degradación**: La ausencia de errores y la estabilidad del TPS indican un límite controlado, no una falla
+1. **5,987 errores HTTP 5xx (stage 1)**: El servidor devuelve errores internos cuando la carga es alta, indicando saturacion de recursos (CPU, memoria, conexiones a BD, pool de workers)
+2. **Dos caidas dramaticas de VUs**: k6 reduce los VUs activos cuando el sistema falla (de ~150 a 10-20), comportamiento tipico de un sistema que no puede procesar la carga
+3. **Recuperacion parcial seguida de recolapso**: El sistema se recupera tras la primera caida pero vuelve a fallar ~25 min despues, indicando que la causa raiz (fuga de recursos, conexiones agotadas, acumulacion de procesos) persiste
+4. **Latencia maxima de 29.93s**: Timeouts extremos durante los colapsos, 19x superiores al P95, confirman fallos cascada
+5. **Correlacion VUs-TPS perfecta**: El throughput depende estrictamente del numero de VUs activos; cuando estos caen, el TPS se desploma
 
-El script K6 está correctamente implementado: las 5 validaciones (status, tiempo de respuesta, token, JSON, errores 5xx) pasan al 100%, y la tasa de login exitoso es del 100%.
+**Posibles causas tecnicas**:
+- Pool de conexiones a base de datos saturado (las conexiones no se liberan correctamente)
+- Rate limiting del servidor API que rechaza conexiones bajo carga excesiva
+- Workers del servidor insuficientes para manejar 140+ conexiones concurrentes
+- Memory leaks o acumulacion de goroutines/hilos que degradan el rendimiento con el tiempo
+- Timeouts en cascada: peticiones lentas bloquean workers, generando mas peticiones lentas
 
 ---
 
-## 7. Conclusión Final
+## 7. Conclusion Final
 
-**El sistema de referencia NO CUMPLE el criterio de rendimiento.**
+**El sistema de referencia NO CUMPLE todos los criterios de rendimiento.**
 
-| Métrica | Criterio | Referencia | Déficit |
-|---------|---------|-----------|---------|
-| TPS | ≥ 20 req/s | 18.04 req/s | -1.96 TPS (-9.8%) |
-| P95 | < 1500 ms | 373.15 ms | ✓ Cumple |
-| Error rate | < 3% | 0% | ✓ Cumple |
+| Metrica | Criterio | Referencia | Veredicto |
+|---------|---------|-----------|-----------|
+| TPS | >= 20 req/s | 73.18 req/s | PASS |
+| P95 | < 1,500 ms | 1,570 ms | **FAIL** |
+| Error rate | < 3% | 2.44% | PASS |
+| Estabilidad | - | 2 caidas dramaticas | **FAIL implicito** |
 
-**Causa**: Bottleneck en servidor API por conexiones limitadas, rate limiting o pool de workers insuficiente.
+**Hallazgos principales de la grafica `VUs_vs_TPS.png`**:
+- **2 caidas dramaticas**: Los VUs colapsan de ~150 a 10-20 en dos ocasiones (~01:50 y ~02:30)
+- **1 recuperacion gradual**: Tras la primera caida, el sistema se recupera progresivamente hasta ~140 VUs
+- **Saturacion**: El TPS maximo sostenido es ~82 req/s con 140 VUs (pico observado a las 02:02)
+- **Patron ciclico**: Estable -> Colapso -> Recuperacion -> Recolapso. El sistema no aprendio ni se estabilizo tras la primera falla
+- **Correlacion perfecta VUs-TPS**: El throughput depende estrictamente de los usuarios activos, sin comportamiento anomalo de la metrica http_reqs por si sola
 
-**Análisis de gráfica**: Los patrones identificados en `vus_vs_tps.png` confirman:
-- Escalabilidad lineal hasta ~25 VUs (~0.73 TPS/VU)
-- Saturación a ~25 VUs con TPS máximo de ~18 req/s
-- Meseta estable sin caídas ni degradación durante el steady-state
-- Recuperación correcta durante el ramp-down
+**Causa**: Bottleneck estructural del servidor bajo carga concurrente alta (140+ VUs), manifestado en 5,987 errores 5xx, latencia maxima de 29.93s, y dos colapsos de VUs.
 
-**Solución recomendada**: 
-- Escalar horizontalmente el servidor API (más instancias)
-- Aumentar el pool de conexiones/workers
-- Revisar configuración de rate limiting
-- Implementar balanceo de carga
-
-**No se requieren cambios en el script de pruebas K6**, ya que está correctamente implementado y todas las validaciones pasan al 100%.
+**Recomendaciones**:
+1. Investigar los 5,987 errores 5xx del stage 1: revisar logs del servidor para identificar la excepcion especifica
+2. Aumentar el pool de conexiones/workers del servidor API
+3. Implementar circuit breaker para evitar fallos cascada
+4. Revisar configuracion de rate limiting
+5. Repetir la prueba con monitoreo de recursos del servidor (CPU, memoria, conexiones activas) para identificar el cuello de botella exacto
+6. Probar con escalones progresivos de VUs (50, 75, 100, 125, 150) para determinar el umbral exacto donde el sistema comienza a degradarse
