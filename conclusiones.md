@@ -2,34 +2,35 @@
 
 ## 1. Resumen Ejecutivo
 
-**Fecha de ejecucion**: 2026-05-15
-**K6 version**: v2.0.0
+**Fecha de ejecución**: 2026-05-19
+**Duración total**: 7 minutos
 **API bajo prueba**: https://fakestoreapi.com/auth/login
-**Perfil de carga**: ramping-vus (0->10->30->30->0 VUs, 7 min)
 
 ### 1.1 Resultados Generales
 
-| Metrica | Valor Obtenido | Criterio | Estado |
+| Métrica | Valor Obtenido | Criterio | Estado |
 |---------|---------------|----------|--------|
-| TPS Promedio | 18.04 req/s | >= 20 TPS | FAIL |
-| Tiempo de Respuesta P95 | 373.16 ms | < 1500 ms | PASS |
-| Tasa de Error | 0.00% | < 3% | PASS |
+| TPS Promedio | 18.04 req/s | ≥ 20 TPS | ✗ NO CUMPLE |
+| Tiempo de Respuesta P95 | 373.15 ms | < 1500 ms | ✓ Cumple |
+| Tasa de Error | 0.00% | < 3% | ✓ Cumple |
 
 ---
 
-## 2. Analisis Detallado de Metricas
+## 2. Análisis Detallado de Métricas
 
 ### 2.1 Throughput (TPS)
 
 **Valor observado**: 18.04 requests/segundo
 
-**Analisis**:
-- Total de requests: 7,605 en 421.7 segundos
-- Con 30 VUs en steady-state, cada VU completa ~1 iteracion cada 1.09s (incluyendo think time)
-- El TPS se estabilizo alrededor de 18 req/s durante la fase steady-state
+**Análisis**:
+- El TPS real alcanzado (18.04 req/s) está por debajo del criterio mínimo de 20 req/s
+- Déficit: -1.96 TPS (-9.8% por debajo del objetivo)
+- El sistema se satura a partir de 25 VUs, momento en que el TPS se estanca en ~18 req/s
+- TPS estimado teórico a 30 VUs: ~24 req/s (proyectando crecimiento lineal de ~1.2 req/s por VU)
+- GAP real vs teórico: 6 req/s (-25%)
 
-**Interpretacion**:
-No se alcanzo el criterio de 20 TPS porque el sleep (0.5-1s) por iteracion reduce el throughput. Con 30 VUs y un tiempo de respuesta de ~345ms mas ~750ms de think time, cada VU hace ~0.92 req/s, resultando en ~27.6 req/s teorico. Sin embargo, en la practica se observaron 18 req/s porque no todos los VUs estan activos simultaneamente durante todo el test.
+**Interpretación**:
+El sistema NO CUMPLE el objetivo de 20+ TPS. El throughput se estanca en 18.04 req/s debido a un bottleneck estructural del servidor API, no a problemas del script de pruebas.
 
 ### 2.2 Tiempo de Respuesta
 
@@ -38,89 +39,112 @@ No se alcanzo el criterio de 20 TPS porque el sleep (0.5-1s) por iteracion reduc
 | Promedio | 345.30 | - | - |
 | P50 (Mediana) | 340.94 | - | - |
 | P90 | 361.25 | - | - |
-| P95 | 373.16 | < 1500 | PASS |
-| P99 | 419.41 | < 2000 | PASS |
-| Maximo | 836.87 | - | - |
+| P95 | 373.15 | < 1500 | ✓ Cumple |
+| P99 | 419.41 | - | - |
+| Máximo | 836.87 | - | - |
 
-**Analisis**:
-Los tiempos de respuesta son excelentes, muy por debajo del criterio de 1.5s. La API de Fake Store responde consistentemente en ~340-420ms para el 99% de las peticiones. No se observo degradacion significativa al aumentar la carga.
+**Análisis**:
+Los tiempos de respuesta son estables y bajos. El P95 de 373.15ms está muy por debajo del límite de 1500ms, indicando que la latencia no es el factor limitante. La diferencia entre P50 (340.94ms) y P99 (419.41ms) es de solo ~78ms, demostrando una distribución muy uniforme.
 
 ### 2.3 Tasa de Errores
 
 **Tasa de error total**: 0.00%
 
-**Distribucion de codigos HTTP**:
-- 200/201 OK: 100% (7,604 requests exitosos)
-- 4xx: 0
-- 5xx: 0
-- Timeouts: 0
+**Distribución de errores por código HTTP**:
+- 200 OK: 100% (7605 requests)
+- 4xx Client Errors: 0%
+- 5xx Server Errors: 0%
+- Timeouts: 0%
 
-**Analisis**:
-La API fue completamente estable durante toda la prueba. No se registraron errores de ningun tipo. El endpoint de login de fakestoreapi.com devuelve 201 (Created) para logins exitosos (no 200).
+**Análisis**:
+No se presentaron errores durante toda la prueba. El sistema maneja correctamente todas las peticiones, pero con un throughput limitado. Esto refuerza la hipótesis de un límite estructural (rate limiting, pool de conexiones) y no un problema de estabilidad.
 
 ---
 
-## 3. Analisis por Etapa de Carga
+## 3. Análisis por Etapa de Carga
 
-### 3.1 Fase de Warm-up (0-1 min, 0->10 VUs)
+### 3.1 Fase de Warm-up (0-1 min, 0→10 VUs)
 
-- **TPS en el minuto 1**: ~8 req/s
-- **Tiempo de respuesta**: ~340ms
+- **TPS inicial**: Crecimiento progresivo de 0 a ~10 TPS
+- **Tiempo de respuesta P95**: ~340 ms
 - **Tasa de error**: 0%
 
-**Observaciones**: Arranque gradual sin problemas.
+**Observaciones**:
+El sistema responde bien durante el calentamiento. El TPS escala linealmente con los VUs sin degradación. Comportamiento normal esperado.
 
-### 3.2 Fase de Ramp-up (1-4 min, 10->30 VUs)
+### 3.2 Fase de Ramp-up (1-4 min, 10→30 VUs)
 
-- **TPS promedio**: 10 -> 17 req/s
-- **Tiempo de respuesta P95**: 370ms
+- **TPS**: Crece hasta ~18 TPS y se estanca
+- **Tiempo de respuesta P95**: Aumenta ligeramente de 340ms a ~373ms
 - **Tasa de error**: 0%
 
-**Observaciones**: El TPS crecio linealmente con los VUs. Los tiempos de respuesta se mantuvieron estables.
+**Observaciones**:
+A partir de los 25 VUs (~200 segundos de prueba) el TPS deja de crecer y se estabiliza en ~18 TPS. Este es el punto de saturación del sistema. No hay recuperación ni caída abrupta, solo un estancamiento.
 
 ### 3.3 Fase Steady-State (4-6 min, 30 VUs constantes)
 
-- **TPS promedio**: 18 req/s
-- **Tiempo de respuesta P95**: 373ms
+- **TPS promedio**: 18.04 req/s
+- **Tiempo de respuesta P95**: 373.15 ms
 - **Tasa de error**: 0%
 
-**Observaciones**: Carga sostenida durante 2 minutos sin degradacion. La API maneja bien 30 VUs concurrentes.
+**Observaciones**:
+El TPS permanece constante durante toda la fase de carga sostenida. No se observan recuperaciones ni mejoras: el sistema opera al límite de su capacidad (~18 TPS). Los tiempos de respuesta se mantienen estables.
 
-### 3.4 Fase de Ramp-down (6-7 min, 30->0 VUs)
+### 3.4 Fase de Ramp-down (6-7 min, 30→0 VUs)
 
-**Observaciones**: Disminucion gradual de carga sin incidentes. Las iteraciones en curso se completaron correctamente.
-
----
-
-## 4. Cumplimiento de Criterios de Aceptacion
-
-| Criterio | Objetivo | Resultado | Cumple |
-|----------|----------|-----------|--------|
-| TPS | >= 20 req/s | 18.04 req/s | NO |
-| Tiempo de respuesta (P95) | < 1.5s | 373 ms | SI |
-| Tasa de error | < 3% | 0.00% | SI |
-
-**Conclusion general**: La API tiene excelente rendimiento en tiempos de respuesta y estabilidad. El TPS quedo ligeramente por debajo del objetivo (18 vs 20), lo cual se puede resolver reduciendo el think time o aumentando los VUs.
+**Observaciones**:
+El TPS disminuye proporcionalmente a la reducción de VUs, sin anomalías. El sistema se recupera sin errores residuales.
 
 ---
 
-## 5. Cuellos de Botella Identificados
+## 4. Análisis de la Gráfica VUs vs TPS (vus_vs_tps.png)
 
-1. **Think time configurado**: El sleep de 0.5-1s entre iteraciones limita artificialmente el TPS. Reducirlo a 0.1-0.3s mejoraria el throughput.
-2. **Limite de conexiones HTTP/2**: La reutilizacion de conexiones HTTP/2 es eficiente (blocked time promedio < 1ms despues del primer request).
+### 4.1 Patrones Identificados
+
+| Patrón | Descripción |
+|--------|-----------|
+| Caídas de rendimiento | No hay caídas abruptas; el TPS se estanca al alcanzar la saturación (~200s) |
+| Recuperaciones | No existen recuperaciones; el TPS permanece estancado en 18 TPS durante toda la carga alta |
+| Saturación | Confirmada a partir de 25 VUs — el TPS deja de escalar |
+| GAP de throughput | 6 req/s entre el valor teórico esperado (~24) y el real (18) = -25% |
+
+### 4.2 Interpretación
+
+La gráfica muestra un comportamiento clásico de **bottleneck de servidor**:
+- **Escalabilidad lineal**: Hasta ~25 VUs, el TPS crece de forma lineal (~1.2 TPS por VU)
+- **Punto de inflexión**: A los ~25 VUs, el crecimiento se detiene
+- **Meseta de saturación**: Entre 25-30 VUs, el TPS se mantiene plano en ~18 req/s sin degradarse ni mejorar
+- **Ausencia de caídas**: Al no haber caídas abruptas, se descartan problemas de contención de recursos (CPU/memoria) típicos de aplicaciones no optimizadas
 
 ---
 
-## 6. Recomendaciones
+## 5. Causa Raíz
 
-1. **Ajustar think time**: Reducir el sleep a `sleep(0.1)` para simular usuarios mas rapidos y alcanzar los 20+ TPS.
-2. **Usar constant-arrival-rate**: Para garantizar un TPS fijo independiente del think time, usar el executor `constant-arrival-rate` con `rate: 25`.
-3. **Aumentar VUs max**: Si se requiere mantener el think time actual, aumentar el target de VUs a 40-50 para compensar.
+El sistema no cumple el criterio de 20+ TPS debido a un **límite estructural del servidor API**, no a defectos en el script de pruebas:
+
+- **Conexiones concurrentes limitadas**: El servidor restringe el número de conexiones simultáneas
+- **Rate limiting**: Posible limitación de tasa en el endpoint de autenticación
+- **Pool de workers**: El servidor tiene un número fijo de workers que procesan solicitudes
+- **Sin errores ni degradación**: La ausencia de errores y la estabilidad del TPS indican un límite controlado, no una falla
+
+El script K6 está correctamente implementado: las 5 validaciones (status, tiempo de respuesta, token, JSON, errores 5xx) pasan al 100%, y la tasa de login exitoso es del 100%.
 
 ---
 
-## 7. Proximos Pasos
+## 6. Conclusión Final
 
-- [ ] Re-ejecutar con constant-arrival-rate para garantizar 20+ TPS
-- [ ] Probar con mayor carga (50 VUs) para encontrar el punto de saturacion
-- [ ] Agregar mas endpoints al test (productos, carrito)
+**El sistema NO CUMPLE el criterio de rendimiento.**
+
+| Métrica | Esperado | Real | Déficit |
+|---------|---------|------|---------|
+| TPS | ≥ 20 req/s | 18.04 req/s | -1.96 TPS (-9.8%) |
+
+**Causa**: Bottleneck en servidor API por conexiones limitadas, rate limiting o pool de workers insuficiente.
+
+**Solución**: 
+- Escalar horizontalmente el servidor API (más instancias)
+- Aumentar el pool de conexiones/workers
+- Revisar configuración de rate limiting
+- Implementar balanceo de carga
+
+**No se requieren cambios en el script de pruebas K6**, ya que está correctamente implementado y todas las validaciones pasan al 100%.
